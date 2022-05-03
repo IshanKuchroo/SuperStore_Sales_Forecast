@@ -43,6 +43,7 @@ def data_processing():
 
     print("Original Dataset: \n", df.head())
     print("Dataset Statistics: \n", df.describe())
+    print("Columns: \n", df.columns)
 
     df_2 = df.copy()
 
@@ -179,7 +180,7 @@ def data_processing():
         fig.tight_layout(pad=3)
         plt.show()
 
-    ACF_PACF_Plot(df_Sales['Sales'], 150)
+    ACF_PACF_Plot(df_Sales['Sales'], 50)
 
     #############################################################
     # ------------------ Correlation Matrix ------------------ #
@@ -194,25 +195,25 @@ def data_processing():
     # ------------------ Rolling Mean and Variance Stationary Test------------------ #
     ###################################################################################
 
-    # df_Sales['Sales_Rolling_Mean'] = cal_rolling_mean_var(df_Sales, 'Sales', 'mean')
-    # df_Sales['Sales_Rolling_Variance'] = cal_rolling_mean_var(df_Sales, 'Sales', 'var')
-    #
-    # plt.figure(figsize=(12, 8))
-    # fig, ax = plt.subplots(nrows=2, ncols=1)
-    # ax[0].plot(df_Sales['Order Date'], df_Sales['Sales_Rolling_Mean'], 'b', label='Rolling Mean Sales')
-    # ax[0].legend()
-    # ax[0].set_title('Stationary test of Sales - Rolling Mean')
-    # ax[0].set_xlabel('Order Date')
-    # ax[0].set_ylabel('Sales')
-    # ax[0].grid()
-    # ax[1].plot(df_Sales['Order Date'], df_Sales['Sales_Rolling_Variance'], 'r', label='Rolling Variance Sales')
-    # ax[1].legend()
-    # ax[1].set_title('Stationary test of Sales - Rolling Variance')
-    # ax[1].set_xlabel('Order Date')
-    # ax[1].set_ylabel('Sales')
-    # ax[1].grid()
-    # plt.tight_layout()
-    # plt.show()
+    df_Sales['Sales_Rolling_Mean'] = cal_rolling_mean_var(df_Sales, 'Sales', 'mean')
+    df_Sales['Sales_Rolling_Variance'] = cal_rolling_mean_var(df_Sales, 'Sales', 'var')
+
+    plt.figure(figsize=(12, 8))
+    fig, ax = plt.subplots(nrows=2, ncols=1)
+    ax[0].plot(df_Sales['Order Date'], df_Sales['Sales_Rolling_Mean'], 'b', label='Rolling Mean Sales')
+    ax[0].legend()
+    ax[0].set_title('Stationary test of Sales - Rolling Mean')
+    ax[0].set_xlabel('Order Date')
+    ax[0].set_ylabel('Sales')
+    ax[0].grid()
+    ax[1].plot(df_Sales['Order Date'], df_Sales['Sales_Rolling_Variance'], 'r', label='Rolling Variance Sales')
+    ax[1].legend()
+    ax[1].set_title('Stationary test of Sales - Rolling Variance')
+    ax[1].set_xlabel('Order Date')
+    ax[1].set_ylabel('Sales')
+    ax[1].grid()
+    plt.tight_layout()
+    plt.show()
 
     ###############################################################################
     # ------------------ ADF Test and KPSS Test for Stationary ------------------ #
@@ -230,9 +231,9 @@ def data_processing():
     #   Rolling Mean and Variance, ADF and KPSS Test for Stationary  - Difference Data #
     ##############################################################################################
 
-    df_Sales['pass_diff_01'] = difference(df_Sales['Sales'], 1)
-
-    ACF_PACF_Plot(df_Sales['pass_diff_01'], 150)
+    # df_Sales['pass_diff_01'] = difference(df_Sales['Sales'], 1)
+    #
+    # ACF_PACF_Plot(df_Sales['pass_diff_01'], 150)
 
     # plt.figure(figsize=(12, 8))
     # plt.hist(df_Sales['Sales'])
@@ -272,13 +273,13 @@ def data_processing():
     # plt.tight_layout()
     # plt.show()
 
-    print("ADF Stats for Sales - 1st order differencing: \n")
-    ADF_Cal(df_Sales['pass_diff_01'])
-    print("\n")
-
-    print("KPSS Stats for Sales - 1st order differencing: \n")
-    kpss_test(df_Sales['pass_diff_01'])
-    print("\n")
+    # print("ADF Stats for Sales - 1st order differencing: \n")
+    # ADF_Cal(df_Sales['pass_diff_01'])
+    # print("\n")
+    #
+    # print("KPSS Stats for Sales - 1st order differencing: \n")
+    # kpss_test(df_Sales['pass_diff_01'])
+    # print("\n")
 
     return df_2, df_Sales
 
@@ -300,7 +301,7 @@ fig = res.plot()
 plt.legend()
 plt.grid()
 plt.suptitle("Sales STL decomposition")
-plt.xlabel("Year")
+plt.xlabel("Order Date")
 plt.tight_layout()
 plt.show()
 
@@ -325,3 +326,11 @@ print("\n")
 ############################################################
 
 X_train, X_test = train_test_split(df_Sales, test_size=0.2, random_state=42, shuffle=False)
+
+
+df_Sales_2 = df_2.groupby("Order Date").sum()[["Sales"]]
+
+df_Sales_2 = pd.DataFrame(df_Sales_2['Sales'].resample('D').mean())
+df_Sales_2 = df_Sales_2.interpolate(method='linear')
+
+df_Sales_2 = df_Sales_2.reset_index()

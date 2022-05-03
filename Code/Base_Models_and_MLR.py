@@ -1,10 +1,10 @@
-import numpy as np
-
+from scipy import stats
 from PreProcessing import *
 
 #################################################################
 # ------------------ Base Methods ------------------ #
 ################################################################
+
 col = 'Sales'
 
 method = ['Average', 'Naive', 'Drift', 'SES']
@@ -57,7 +57,7 @@ def base_methods(train, test):
         plt.plot([None for i in train] + [x for x in test], label='Testing dataset')
         plt.plot([None for i in train] + [x for x in h_step_forecast], label=f'{method[i]} method h-step prediction')
         plt.legend()
-        plt.xlabel('Sample space')
+        plt.xlabel('Sample set')
         plt.ylabel('Sales')
         plt.title(f"{method[i]} Method Forecasting")
         plt.grid()
@@ -72,11 +72,11 @@ final_df = base_methods(X_train[col], X_test[col])
 # ------------------ Holt-Winters Method ------------------ #
 ################################################################
 
-# holtt = ets.ExponentialSmoothing(X_train[col], trend='add', damped_trend=False, seasonal='add',
-#                                  seasonal_periods=7).fit()
+holtt = ets.ExponentialSmoothing(X_train[col], trend='add', damped_trend=False, seasonal='add',
+                                 seasonal_periods=7).fit()
 
-# holtt = ets.ExponentialSmoothing(X_train['Sales'], trend='add', damped_trend=False, seasonal=None).fit()
-holtt = ets.Holt(X_train['Sales'], damped_trend=False).fit(optimized=True)
+# holtt = ets.ExponentialSmoothing(X_train['Sales'], trend='add', damped_trend=False, seasonal=None).fit(optimized=True)
+# holtt = ets.Holt(X_train['Sales'], damped_trend=False).fit(optimized=True)
 
 holtf = holtt.forecast(steps=len(X_test[col]))
 
@@ -122,7 +122,7 @@ plt.plot(X_train['Order Date'], X_train[col], label='Training dataset')
 plt.plot(X_test['Order Date'], X_test[col], label='Testing dataset')
 plt.plot(X_test['Order Date'], holtf, label='Holt-Winter h-step prediction')
 plt.legend()
-plt.xlabel('Sample Space')
+plt.xlabel('Date')
 plt.ylabel('Sales')
 plt.title("Holt-Winter Method Forecasting")
 # plt.xticks(X_train['Month'][::20])
@@ -145,60 +145,48 @@ def mapping(xx):
     return dict
 
 
-for i in ['City', 'State', 'Sub-Category']:
+for i in ['City', 'State', 'Sub-Category', 'Ship Mode', 'Region', 'Segment', 'Category']:
     unique_tag = df_2[i].value_counts().keys().values
     dict_mapping = mapping(unique_tag)
     df_2[i] = df_2[i].map(lambda x: dict_mapping[x] if x in dict_mapping.keys() else -1)
 
-df_2['norm_Sales'] = stats.rankdata(df_2['Sales'])
+df_2['norm_Sales'] = np.log(df_2['Sales'])
 
-df_2['norm_Sales'] = stats.norm.ppf(df_2['norm_Sales'] / (len(df_2['norm_Sales']) + 1))
-
-# One-Hot encoding on categorical variables
-
-df_2 = pd.get_dummies(df_2, columns=['Ship Mode', 'Region', 'Segment', 'Category'])
-
-X = df_2[['City', 'State', 'Sub-Category', 'Quantity', 'Discount', 'Profit', 'Ship Mode_First Class'
-    , 'Ship Mode_Same Day', 'Ship Mode_Second Class', 'Ship Mode_Standard Class', 'Region_Central', 'Region_East'
-    , 'Region_South', 'Region_West', 'Segment_Consumer', 'Segment_Corporate', 'Segment_Home Office'
-    , 'Category_Furniture', 'Category_Office Supplies', 'Category_Technology']]
+X = df_2[['Quantity', 'Discount', 'Profit']]
 
 Y = df_2[['norm_Sales']]
 
-X = sm.add_constant(X)
+#######################################################################
+# ------------------ SVD and Condition Number ------------------ #
+######################################################################
+
+s, d, v = np.linalg.svd(X, full_matrices=True)
+
+print(f"Singular value of dataframe are {d}")
+print(f"Condition number for dataframe is {LA.cond(X)}")
+
+# X = sm.add_constant(X)
 
 X_train, X_test, y_train, y_test = train_test_split(X, Y, shuffle=False, test_size=0.20)
 
 model = sm.OLS(y_train, X_train).fit()
 print(model.summary())
 
+#######################################################################
+# ------------------ Multiple Linear Regression ------------------ #
+######################################################################
+
 #########################################################################################
 # ------------------ Feature selection - Backward stepwise regression ------------------ #
 ########################################################################################
 
-X_train.drop(['Ship Mode_Same Day'], axis=1, inplace=True)
+X_train.drop(['Discount'], axis=1, inplace=True)
 model = sm.OLS(y_train, X_train).fit()
 print(model.summary())
 
-X_train.drop(['Ship Mode_Second Class'], axis=1, inplace=True)
-model = sm.OLS(y_train, X_train).fit()
-print(model.summary())
-
-X_train.drop(['Ship Mode_First Class'], axis=1, inplace=True)
-model = sm.OLS(y_train, X_train).fit()
-print(model.summary())
-
-X_train.drop(['Ship Mode_Standard Class'], axis=1, inplace=True)
-model = sm.OLS(y_train, X_train).fit()
-print(model.summary())
-
-X_train.drop(['State'], axis=1, inplace=True)
-model = sm.OLS(y_train, X_train).fit()
-print(model.summary())
-
-X_train.drop(['City'], axis=1, inplace=True)
-model = sm.OLS(y_train, X_train).fit()
-print(model.summary())
+# X_train.drop(['Quantity'], axis=1, inplace=True)
+# model = sm.OLS(y_train, X_train).fit()
+# print(model.summary())
 
 print("t-test p-values for all features: \n", model.pvalues)
 
@@ -206,8 +194,10 @@ print("#" * 100)
 
 print("F-test for final model: \n", model.f_pvalue)
 
-col = ['Ship Mode_Same Day', 'Ship Mode_Second Class', 'Ship Mode_First Class', 'Ship Mode_Standard Class', 'State'
-    , 'City']
+# stats.probplot(model.resid, dist="norm", plot= plt)
+# plt.title("OLS Model Residuals Q-Q Plot")
+
+col = ['Discount']
 
 for i in col:
     X_test.drop(i, axis=1, inplace=True)
@@ -223,11 +213,11 @@ forecast = pd.DataFrame(forecast, columns=['forecast']).set_index(X_test.index)
 plt.figure()
 plt.plot(y_train, label='Training Data')
 plt.plot(y_test, label="Testing Data")
-plt.plot(forecast['forecast'], label="Predicted test values")
+plt.plot(forecast['forecast'], label="MLR h-step Prediction")
 plt.xlabel("Sample Space")
 plt.ylabel("Sales")
 plt.legend()
-plt.title("Sales Dataset Predictions - MLR")
+plt.title("Sales Dataset Predictions - Multiple Linear Regression")
 plt.grid()
 plt.tight_layout()
 plt.show()
@@ -243,7 +233,7 @@ plt.axhspan(-1 * span, span, alpha=0.2, color='blue')
 plt.stem(x_axis, y_axis)
 plt.xlabel("Lags")
 plt.ylabel("ACF")
-plt.title("Residual Error ACF Plot - MLR")
+plt.title("Residual Error ACF Plot - Multiple Linear Regression")
 plt.grid()
 plt.show()
 
@@ -252,15 +242,20 @@ forecast_error = np.subtract(y_test, np.asarray(forecast))
 forecast_error = forecast_error.reset_index()
 forecast_error.drop('index', axis=1, inplace=True)
 
-# y_axis, x_axis = auto_corr_func_lags(forecast_error['norm_Sales'], 20)
-# span = 1.96 / np.sqrt(len(forecast_error['norm_Sales']))
-# plt.axhspan(-1 * span, span, alpha=0.2, color='blue')
-# plt.stem(x_axis, y_axis)
-# plt.xlabel("Lags")
-# plt.ylabel("ACF")
-# plt.title("Forecast Error ACF Plot")
-# plt.grid()
-# plt.show()
+Q = sm.stats.acorr_ljungbox(pred_error['norm_Sales'], lags=[20], boxpierce=True, return_df=True)['bp_stat'].values[0]
+
+lst = [np.round(np.sum(np.square(forecast_error['norm_Sales'])) / len(forecast_error), 2)
+    , np.round(np.sum(np.square(pred_error['norm_Sales'])) / len(pred_error), 2)
+    , np.round(np.var(pred_error['norm_Sales']), 2)
+    , np.round(np.var(forecast_error['norm_Sales']), 2)
+    , np.round(Q, 2)
+    , np.round(np.var(pred_error['norm_Sales']) / np.var(forecast_error['norm_Sales']), 2)]
+
+final_df['OLS_Model'] = lst
+
+print(final_df.to_string())
+
+
 #
 # K = len(X_train.columns)  # number of columns for prediction
 #
@@ -277,16 +272,3 @@ forecast_error.drop('index', axis=1, inplace=True)
 # var_fore = np.sqrt(np.sum(np.square(forecast_error)) / (T - K - 1))
 #
 # print("Variance of forecast error: ", var_fore[0])
-
-Q = sm.stats.acorr_ljungbox(pred_error['norm_Sales'], lags=[20], boxpierce=True, return_df=True)['bp_stat'].values[0]
-
-lst = [np.round(np.sum(np.square(forecast_error['norm_Sales'])) / len(forecast_error), 2)
-    , np.round(np.sum(np.square(pred_error['norm_Sales'])) / len(pred_error), 2)
-    , np.round(np.var(pred_error['norm_Sales']), 2)
-    , np.round(np.var(forecast_error['norm_Sales']), 2)
-    , np.round(Q, 2)
-    , np.round(np.var(pred_error['norm_Sales']) / np.var(forecast_error['norm_Sales']), 2)]
-
-final_df['OLS_Model'] = lst
-
-print(final_df.to_string())
